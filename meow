@@ -1,110 +1,71 @@
 -- Teleport checkpoints 1-60 to you, jump until stage 60, then rebirth and rejoin
+-- Autoexec compatible - waits indefinitely for everything to load
 
 local player = game.Players.LocalPlayer
 local TeleportService = game:GetService("TeleportService")
 
--- Wait for character with retry
-local character = nil
-local humanoid = nil
-local hrp = nil
-
-for i = 1, 10 do
-    character = player.Character
-    if character then
-        humanoid = character:FindFirstChild("Humanoid")
-        hrp = character:FindFirstChild("HumanoidRootPart")
-        if humanoid and hrp then
-            break
+local function waitForCharacter()
+    while true do
+        local char = player.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChild("Humanoid")
+            if hrp and hum then
+                return char, hrp, hum
+            end
         end
+        task.wait(0.5)
     end
-    task.wait(1)
 end
 
-if not character or not humanoid or not hrp then
-    warn("Character failed to load after 10 seconds")
-    return
-end
-
--- Wait for UI to load with retry
-local stage = nil
-for i = 1, 10 do
-    local stageGui = player.PlayerGui:FindFirstChild("MainUI")
-    if stageGui then
-        local stageSelector = stageGui:FindFirstChild("StageSelector")
-        if stageSelector then
-            local container = stageSelector:FindFirstChild("Container")
-            if container then
-                stage = container:FindFirstChild("Stage")
-                if stage then
-                    break
+local function waitForUI()
+    while true do
+        local stageGui = player.PlayerGui:FindFirstChild("MainUI")
+        if stageGui then
+            local stageSelector = stageGui:FindFirstChild("StageSelector")
+            if stageSelector then
+                local container = stageSelector:FindFirstChild("Container")
+                if container then
+                    local stage = container:FindFirstChild("Stage")
+                    if stage then
+                        return stage
+                    end
                 end
             end
         end
+        task.wait(0.5)
     end
-    task.wait(1)
 end
 
-if not stage then
-    warn("UI failed to load after 10 seconds")
-end
-
-print("Character and UI loaded! Starting script...")
-
--- Function to teleport checkpoints (gets fresh position each time)
-local function teleportCheckpoints()
-    local currentChar = player.Character
-    if not currentChar then 
-        print("No character found, retrying...")
-        return false
-    end
-    
-    local currentHrp = currentChar:FindFirstChild("HumanoidRootPart")
-    if not currentHrp then 
-        return false
-    end
-    
-    local targetPos = currentHrp.Position
+local function teleportCheckpoints(hrp)
+    if not hrp then return end
+    local targetPos = hrp.Position
     
     for i = 1, 60 do
-        local checkpointsFolder = workspace:FindFirstChild("Checkpoints")
-        if not checkpointsFolder then break end
-        
-        local checkpointPart = checkpointsFolder:FindFirstChild(tostring(i))
-        if checkpointPart then
-            local checkpoint = checkpointPart:FindFirstChild("Checkpoint")
-            if checkpoint and checkpoint:IsA("BasePart") then
-                pcall(function()
-                    checkpoint.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, -3))
-                end)
+        local checkpoint = workspace:FindFirstChild("Checkpoints")
+        if checkpoint then
+            local numFolder = checkpoint:FindFirstChild(tostring(i))
+            if numFolder then
+                local checkpointPart = numFolder:FindFirstChild("Checkpoint")
+                if checkpointPart and checkpointPart:IsA("BasePart") then
+                    pcall(function()
+                        checkpointPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, -3))
+                    end)
+                end
             end
         end
+        task.wait(0.05)
     end
-    
-    print("Teleported checkpoints 1-60 to your position")
-    return true
-end
-
--- Wait 3 seconds for world to stabilize
-task.wait(3)
-
--- Teleport checkpoints
-teleportCheckpoints()
-
--- Get current stage value
-local function getCurrentStage()
-    if not stage or not stage.Parent then return 0 end
-    local num = tonumber(stage.Text)
-    return num or 0
+    print("Teleported checkpoints 1-60")
 end
 
 local function fireRebirth()
     pcall(function()
-        local args = {}
-        local rebirthSignal = game:GetService("ReplicatedStorage"):FindFirstChild("Signals")
-        if rebirthSignal then
-            local rebirth = rebirthSignal:FindFirstChild("Rebirth")
+        local reb = game:GetService("ReplicatedStorage"):FindFirstChild("Signals")
+        if reb then
+            local rebirth = reb:FindFirstChild("Rebirth")
             if rebirth then
-                rebirth:FireServer(unpack(args))
+                rebirth:FireServer()
             end
         end
     end)
@@ -118,35 +79,49 @@ local function rejoinGame()
     print("Rejoining...")
 end
 
--- Jump loop with ground check
+-- Wait for everything
+print("Waiting for character...")
+local char, hrp, hum = waitForCharacter()
+print("Character loaded")
+
+print("Waiting for UI...")
+local stage = waitForUI()
+print("UI loaded")
+
+-- Wait a bit more for world to settle
+task.wait(2)
+
+-- Teleport checkpoints
+teleportCheckpoints(hrp)
+
+-- Jump until stage 60
+local jumping = true
 task.spawn(function()
-    while true do
-        local currentStage = getCurrentStage()
-        if currentStage >= 60 then
-            print("Stage " .. currentStage .. " reached! Stopping jump.")
+    while jumping do
+        local currentNum = tonumber(stage.Text)
+        if currentNum and currentNum >= 60 then
+            print("Stage " .. currentNum .. " reached!")
+            jumping = false
             
-            -- Fire rebirth
             task.wait(1)
             fireRebirth()
             
-            -- Rejoin game
             task.wait(1)
             rejoinGame()
-            
             break
         end
         
-        -- Refresh humanoid reference
+        -- Refresh humanoid and jump
         local currentChar = player.Character
         if currentChar then
-            local currentHumanoid = currentChar:FindFirstChild("Humanoid")
-            if currentHumanoid and currentHumanoid.FloorMaterial ~= Enum.Material.Air then
-                currentHumanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            local currentHum = currentChar:FindFirstChild("Humanoid")
+            if currentHum and currentHum.FloorMaterial ~= Enum.Material.Air then
+                currentHum:ChangeState(Enum.HumanoidStateType.Jumping)
             end
         end
         
-        task.wait(0.3)
+        task.wait(0.2)
     end
 end)
 
-print("Jumping until stage 60, then rebirth and rejoin")
+print("Script running - waiting for stage 60...")
