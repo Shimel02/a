@@ -1,15 +1,21 @@
 -- Teleport checkpoints 1-60 to you, jump until stage 60, then rebirth and rejoin
+-- Waits for character and UI to load before starting
 
 local player = game.Players.LocalPlayer
-local character = player.Character
-local hrp = character and character:FindFirstChild("HumanoidRootPart")
-local humanoid = character and character:FindFirstChild("Humanoid")
 local TeleportService = game:GetService("TeleportService")
 
-if not hrp or not humanoid then
-    warn("Character, HumanoidRootPart, or Humanoid not found")
-    return
-end
+-- Wait for character to load
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Wait for UI to load
+local stageGui = player.PlayerGui:WaitForChild("MainUI")
+local stageSelector = stageGui:WaitForChild("StageSelector")
+local container = stageSelector:WaitForChild("Container")
+local stage = container:WaitForChild("Stage")
+
+print("Character and UI loaded! Starting script...")
 
 local targetPos = hrp.Position
 
@@ -30,24 +36,8 @@ print("Teleported checkpoints 1-60 to your position")
 
 -- Get current stage value
 local function getCurrentStage()
-    local stageGui = player.PlayerGui:FindFirstChild("MainUI")
-    if not stageGui then return 0 end
-    
-    local stageSelector = stageGui:FindFirstChild("StageSelector")
-    if not stageSelector then return 0 end
-    
-    local container = stageSelector:FindFirstChild("Container")
-    if not container then return 0 end
-    
-    local stage = container:FindFirstChild("Stage")
-    if not stage then return 0 end
-    
-    if stage:IsA("TextLabel") or stage:IsA("TextBox") then
-        local num = tonumber(stage.Text)
-        if num then return num end
-    end
-    
-    return 0
+    local num = tonumber(stage.Text)
+    return num or 0
 end
 
 local function fireRebirth()
