@@ -1,4 +1,4 @@
-task.wait(1)
+task.wait(3)
 
 -- Teleport through checkpoints 1-60, then rebirth, then rejoin
 
