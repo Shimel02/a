@@ -1,32 +1,58 @@
-
--- Teleport through checkpoints 1-60, then rebirth, then rejoin
+-- Teleport checkpoints 1-60 to you, jump until stage 60, then rebirth and rejoin
 
 local player = game.Players.LocalPlayer
+local character = player.Character
+local hrp = character and character:FindFirstChild("HumanoidRootPart")
+local humanoid = character and character:FindFirstChild("Humanoid")
 local TeleportService = game:GetService("TeleportService")
 
-local function teleportToCheckpoint(num)
+if not hrp or not humanoid then
+    warn("Character, HumanoidRootPart, or Humanoid not found")
+    return
+end
+
+local targetPos = hrp.Position
+
+-- Teleport all checkpoints 1-60 to your position
+for i = 1, 60 do
     local checkpoint = workspace:FindFirstChild("Checkpoints") 
-        and workspace.Checkpoints:FindFirstChild(tostring(num)) 
-        and workspace.Checkpoints[tostring(num)]:FindFirstChild("Base")
+        and workspace.Checkpoints:FindFirstChild(tostring(i)) 
+        and workspace.Checkpoints[tostring(i)]:FindFirstChild("Checkpoint")
     
-    if not checkpoint then
-        warn("Checkpoint " .. num .. " not found")
-        return false
+    if checkpoint and checkpoint:IsA("BasePart") then
+        pcall(function()
+            checkpoint.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, -3))
+        end)
+    end
+end
+
+print("Teleported checkpoints 1-60 to your position")
+
+-- Get current stage value
+local function getCurrentStage()
+    local stageGui = player.PlayerGui:FindFirstChild("MainUI")
+    if not stageGui then return 0 end
+    
+    local stageSelector = stageGui:FindFirstChild("StageSelector")
+    if not stageSelector then return 0 end
+    
+    local container = stageSelector:FindFirstChild("Container")
+    if not container then return 0 end
+    
+    local stage = container:FindFirstChild("Stage")
+    if not stage then return 0 end
+    
+    if stage:IsA("TextLabel") or stage:IsA("TextBox") then
+        local num = tonumber(stage.Text)
+        if num then return num end
     end
     
-    local character = player.Character
-    if not character then return false end
-    
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    
-    hrp.CFrame = CFrame.new(checkpoint.Position + Vector3.new(0, 3, 0))
-    return true
+    return 0
 end
 
 local function fireRebirth()
-    local args = {}
     pcall(function()
+        local args = {}
         game:GetService("ReplicatedStorage"):WaitForChild("Signals"):WaitForChild("Rebirth"):FireServer(unpack(args))
     end)
     print("Rebirth fired")
@@ -39,22 +65,31 @@ local function rejoinGame()
     print("Rejoining...")
 end
 
--- Main sequence
+-- Jump loop with ground check
 task.spawn(function()
-    -- Teleport through checkpoints 1 to 60
-    for i = 1, 60 do
-        print("Teleporting to checkpoint " .. i)
-        teleportToCheckpoint(i)
-        task.wait(0.1)
+    while true do
+        local currentStage = getCurrentStage()
+        if currentStage >= 60 then
+            print("Stage " .. currentStage .. " reached! Stopping jump.")
+            
+            -- Fire rebirth
+            task.wait(1)
+            fireRebirth()
+            
+            -- Rejoin game
+            task.wait(1)
+            rejoinGame()
+            
+            break
+        end
+        
+        -- Only jump if on ground
+        if humanoid and humanoid.FloorMaterial ~= Enum.Material.Air then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+        
+        task.wait(0.3)
     end
-    
-    -- Fire rebirth
-    task.wait()
-    fireRebirth(0.5)
-    
-    -- Rejoin game
-    task.wait()
-    rejoinGame(0.5)
 end)
 
-print("Starting checkpoint teleport (1-60) → Rebirth → Rejoin")
+print("Jumping until stage 60, then rebirth and rejoin")
