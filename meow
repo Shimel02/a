@@ -17,25 +17,41 @@ local stage = container:WaitForChild("Stage")
 
 print("Character and UI loaded! Starting script...")
 
-local targetPos = hrp.Position
-
--- Teleport all checkpoints 1-60 to your position
-for i = 1, 60 do
-    local checkpoint = workspace:FindFirstChild("Checkpoints") 
-        and workspace.Checkpoints:FindFirstChild(tostring(i)) 
-        and workspace.Checkpoints[tostring(i)]:FindFirstChild("Checkpoint")
+-- Function to teleport checkpoints (gets fresh position each time)
+local function teleportCheckpoints()
+    -- Get current character position fresh
+    local currentChar = player.Character
+    if not currentChar then return end
     
-    if checkpoint and checkpoint:IsA("BasePart") then
-        pcall(function()
-            checkpoint.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, -3))
-        end)
+    local currentHrp = currentChar:FindFirstChild("HumanoidRootPart")
+    if not currentHrp then return end
+    
+    local targetPos = currentHrp.Position
+    
+    for i = 1, 60 do
+        local checkpoint = workspace:FindFirstChild("Checkpoints") 
+            and workspace.Checkpoints:FindFirstChild(tostring(i)) 
+            and workspace.Checkpoints[tostring(i)]:FindFirstChild("Checkpoint")
+        
+        if checkpoint and checkpoint:IsA("BasePart") then
+            pcall(function()
+                checkpoint.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, -3))
+            end)
+        end
     end
+    
+    print("Teleported checkpoints 1-60 to your position")
 end
 
-print("Teleported checkpoints 1-60 to your position")
+-- Wait additional 2 seconds for world to fully stabilize
+task.wait(2)
+
+-- Teleport checkpoints
+teleportCheckpoints()
 
 -- Get current stage value
 local function getCurrentStage()
+    if not stage or not stage.Parent then return 0 end
     local num = tonumber(stage.Text)
     return num or 0
 end
