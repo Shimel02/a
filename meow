@@ -1,3 +1,5 @@
+task.wait(1)
+
 -- Teleport through checkpoints 1-60, then rebirth, then rejoin
 
 local player = game.Players.LocalPlayer
