@@ -1,50 +1,91 @@
 -- Teleport checkpoints 1-60 to you, jump until stage 60, then rebirth and rejoin
--- Waits for character and UI to load before starting
 
 local player = game.Players.LocalPlayer
 local TeleportService = game:GetService("TeleportService")
 
--- Wait for character to load
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
-local humanoid = character:WaitForChild("Humanoid")
+-- Wait for character with retry
+local character = nil
+local humanoid = nil
+local hrp = nil
 
--- Wait for UI to load
-local stageGui = player.PlayerGui:WaitForChild("MainUI")
-local stageSelector = stageGui:WaitForChild("StageSelector")
-local container = stageSelector:WaitForChild("Container")
-local stage = container:WaitForChild("Stage")
+for i = 1, 10 do
+    character = player.Character
+    if character then
+        humanoid = character:FindFirstChild("Humanoid")
+        hrp = character:FindFirstChild("HumanoidRootPart")
+        if humanoid and hrp then
+            break
+        end
+    end
+    task.wait(1)
+end
+
+if not character or not humanoid or not hrp then
+    warn("Character failed to load after 10 seconds")
+    return
+end
+
+-- Wait for UI to load with retry
+local stage = nil
+for i = 1, 10 do
+    local stageGui = player.PlayerGui:FindFirstChild("MainUI")
+    if stageGui then
+        local stageSelector = stageGui:FindFirstChild("StageSelector")
+        if stageSelector then
+            local container = stageSelector:FindFirstChild("Container")
+            if container then
+                stage = container:FindFirstChild("Stage")
+                if stage then
+                    break
+                end
+            end
+        end
+    end
+    task.wait(1)
+end
+
+if not stage then
+    warn("UI failed to load after 10 seconds")
+end
 
 print("Character and UI loaded! Starting script...")
 
 -- Function to teleport checkpoints (gets fresh position each time)
 local function teleportCheckpoints()
-    -- Get current character position fresh
     local currentChar = player.Character
-    if not currentChar then return end
+    if not currentChar then 
+        print("No character found, retrying...")
+        return false
+    end
     
     local currentHrp = currentChar:FindFirstChild("HumanoidRootPart")
-    if not currentHrp then return end
+    if not currentHrp then 
+        return false
+    end
     
     local targetPos = currentHrp.Position
     
     for i = 1, 60 do
-        local checkpoint = workspace:FindFirstChild("Checkpoints") 
-            and workspace.Checkpoints:FindFirstChild(tostring(i)) 
-            and workspace.Checkpoints[tostring(i)]:FindFirstChild("Checkpoint")
+        local checkpointsFolder = workspace:FindFirstChild("Checkpoints")
+        if not checkpointsFolder then break end
         
-        if checkpoint and checkpoint:IsA("BasePart") then
-            pcall(function()
-                checkpoint.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, -3))
-            end)
+        local checkpointPart = checkpointsFolder:FindFirstChild(tostring(i))
+        if checkpointPart then
+            local checkpoint = checkpointPart:FindFirstChild("Checkpoint")
+            if checkpoint and checkpoint:IsA("BasePart") then
+                pcall(function()
+                    checkpoint.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, -3))
+                end)
+            end
         end
     end
     
     print("Teleported checkpoints 1-60 to your position")
+    return true
 end
 
--- Wait additional 2 seconds for world to fully stabilize
-task.wait(2)
+-- Wait 3 seconds for world to stabilize
+task.wait(3)
 
 -- Teleport checkpoints
 teleportCheckpoints()
@@ -59,7 +100,13 @@ end
 local function fireRebirth()
     pcall(function()
         local args = {}
-        game:GetService("ReplicatedStorage"):WaitForChild("Signals"):WaitForChild("Rebirth"):FireServer(unpack(args))
+        local rebirthSignal = game:GetService("ReplicatedStorage"):FindFirstChild("Signals")
+        if rebirthSignal then
+            local rebirth = rebirthSignal:FindFirstChild("Rebirth")
+            if rebirth then
+                rebirth:FireServer(unpack(args))
+            end
+        end
     end)
     print("Rebirth fired")
 end
@@ -89,9 +136,13 @@ task.spawn(function()
             break
         end
         
-        -- Only jump if on ground
-        if humanoid and humanoid.FloorMaterial ~= Enum.Material.Air then
-            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        -- Refresh humanoid reference
+        local currentChar = player.Character
+        if currentChar then
+            local currentHumanoid = currentChar:FindFirstChild("Humanoid")
+            if currentHumanoid and currentHumanoid.FloorMaterial ~= Enum.Material.Air then
+                currentHumanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
         end
         
         task.wait(0.3)
